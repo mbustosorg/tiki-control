@@ -60,7 +60,6 @@ def wifi_connection(config):
             status = wlan.status()
             if status >= 3:
                 break
-            toggle_startup_display(wait)
             wait += 1
             sleep(1)
         if wlan.status() != 3:
@@ -86,7 +85,7 @@ async def run_server(saddr, port, handler):
         p.register(sock, select.POLLIN)
         poll = getattr(p, "ipoll", p.poll)
 
-        print(f"Listening for OSC messages on {saddr}:{port}", saddr, port)
+        print(f"Listening for OSC messages on {saddr}:{port}")
         while True:
             try:
                 for res in poll(1):

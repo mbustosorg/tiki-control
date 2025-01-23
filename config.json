@@ -1,0 +1,5 @@
+{    
+    "WIFI_SSID": "tiki-control",
+    "WIFI_PASSWORD": "breakson",
+    "MOBILE_CLIENTS": "192.168.4.1",
+}
