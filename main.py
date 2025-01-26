@@ -1,7 +1,4 @@
 # TODO:
-#	Log into Wifi
-#	Send OSC
-#	RGB LED feedback
 #	G delta stop algorithm
 
 import json
@@ -40,7 +37,7 @@ pixels.show()
 i2c = I2C(0, sda=Pin(0), scl=Pin(1), freq=400000)
 imu = MPU6050(i2c)
      
-Z_INITIALIZE = -1.0
+Z_INITIALIZE = 1.0
 X_INITIALIZE = 0.0
 Y_INITIALIZE = 0.0
 INITIALIZATION_BAND = 0.2
@@ -54,15 +51,14 @@ def monitor_loop():
     initialization_pre = 0
     initialization_index = 0
     initialization_index_prev = 0
-    gesture_initialized = False
-    gesture_start = 1
+    gesture_initialized = 0
+    gesture_start = 0
     
     print(config)
     wlan = None
     while not wlan:
         wlan = wifi_connection(config)
         sleep(1)
-    print("connected")
 
     while True:
         try:
@@ -87,33 +83,41 @@ def monitor_loop():
             
             if not gesture_initialized and ((ticks_ms() - gesture_start) > 1000):
                 gesture_start = 0
-                gesture_initialized = False
+                gesture_initialized = 0
                 pixels.fill(BLUE)
                 if ((Z_INITIALIZE - INITIALIZATION_BAND) < running[2] < (Z_INITIALIZE + INITIALIZATION_BAND)) and \
                     ((X_INITIALIZE - INITIALIZATION_BAND) < running[0] < (X_INITIALIZE + INITIALIZATION_BAND)) and \
                     ((Y_INITIALIZE - INITIALIZATION_BAND) < running[1] < (Y_INITIALIZE + INITIALIZATION_BAND)):
-                    gesture_initialized = True
+                    gesture_initialized = ticks_ms()
                     print("Intialized")
-                    pixels.fill(RED)
+                    pixels.fill(GREEN)
+                    for client in mobile_clients:
+                        client.send("/initialized", 1)
+                pixels.show()
+            elif gesture_initialized and ((ticks_ms() - gesture_initialized) > 5000):
+                gesture_initialized = 0
+                print("Abandoned")
+                pixels.fill(BLUE)
+                client.send("/initialized", 0)
                 pixels.show()
             elif gesture_initialized and not gesture_start:
                 if abs(rx) > 225:
-                    pixels.fill(GREEN)
+                    pixels.fill(RED)
                     print("Started")
                     gesture_start = ticks_ms()
-                    gesture_initialized = False
+                    gesture_initialized = 0
                     gesture_name = "rx"
                 elif abs(ry) > 225:
-                    pixels.fill(ORANGE)
+                    pixels.fill(RED)
                     print("Started")
                     gesture_start = ticks_ms()
-                    gesture_initialized = False
+                    gesture_initialized = 0
                     gesture_name = "ry"
                 elif abs(rz) > 225:
-                    pixels.fill(VIOLET)
+                    pixels.fill(RED)
                     print("Started")
                     gesture_start = ticks_ms()
-                    gesture_initialized = False
+                    gesture_initialized = 0
                     gesture_name = "rz"
                 pixels.show()
                 if gesture_start:
@@ -122,6 +126,7 @@ def monitor_loop():
                         while not wlan.isconnected():
                             wlan = wifi_connection(config)                        
                     for client in mobile_clients:
+                        print('send')
                         client.send("/gesture", gesture_name)
             print("X: {:6.2f}g, Y: {:6.2f}g, Z: {:6.2f}g RX: {:6.2f}, RY: {:6.2f}, RZ: {:6.2f}".format(x, y, z, rx, ry, rz))
             
@@ -135,8 +140,8 @@ def monitor_loop():
 if __name__ == "__main__":
     
     rhb_pico_utils.led = Pin("LED", Pin.OUT)
-    rhb_pico_utils.led.off()
-    pixels.fill(ORANGE)
+    rhb_pico_utils.led.on()
+    pixels.fill(BLUE)
     pixels.show()
 
     mobile_clients = list(map(lambda x: Client(x, 8888), config["MOBILE_CLIENTS"].split(",")))
