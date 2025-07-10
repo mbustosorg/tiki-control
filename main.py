@@ -1,5 +1,16 @@
-# TODO:
-#	G delta stop algorithm
+"""
+Copyright (C) 2025 Mauricio Bustos (m@bustos.org)
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
 
 import json
 
@@ -17,6 +28,8 @@ from machine import Pin, I2C
 
 import time
 from neopixel import Neopixel
+
+import patterns
  
 pixels = Neopixel(1, 0, 28, "GRB")
 
@@ -53,12 +66,25 @@ def monitor_loop():
     initialization_index_prev = 0
     gesture_initialized = 0
     gesture_start = 0
+    gesture_name = ''
     
     print(config)
     wlan = None
     while not wlan:
         wlan = wifi_connection(config)
         sleep(1)
+    pixels.fill(BLUE)
+    pixels.show()
+    
+    def start_pattern(name):
+        nonlocal gesture_start
+        nonlocal gesture_initialized
+        nonlocal gesture_name 
+        pixels.fill(RED)
+        print(f"Started {name}")
+        gesture_start = ticks_ms()
+        gesture_initialized = 0
+        gesture_name = name
 
     while True:
         try:
@@ -81,7 +107,7 @@ def monitor_loop():
                 running[1] = running[1] + y / INIT_COUNT
                 running[2] = running[2] + z / INIT_COUNT
             
-            if not gesture_initialized and ((ticks_ms() - gesture_start) > 1000):
+            if not gesture_initialized and ((ticks_ms() - gesture_start) > 100):
                 gesture_start = 0
                 gesture_initialized = 0
                 pixels.fill(BLUE)
@@ -94,31 +120,36 @@ def monitor_loop():
                     for client in mobile_clients:
                         client.send("/initialized", 1)
                 pixels.show()
-            elif gesture_initialized and ((ticks_ms() - gesture_initialized) > 5000):
+            elif gesture_initialized and ((ticks_ms() - gesture_initialized) > 3000):
                 gesture_initialized = 0
                 print("Abandoned")
                 pixels.fill(BLUE)
                 client.send("/initialized", 0)
                 pixels.show()
+                utime.sleep(1)
             elif gesture_initialized and not gesture_start:
-                if abs(rx) > 225:
-                    pixels.fill(RED)
-                    print("Started")
-                    gesture_start = ticks_ms()
-                    gesture_initialized = 0
-                    gesture_name = "rx"
-                elif abs(ry) > 225:
-                    pixels.fill(RED)
-                    print("Started")
-                    gesture_start = ticks_ms()
-                    gesture_initialized = 0
-                    gesture_name = "ry"
-                elif abs(rz) > 225:
-                    pixels.fill(RED)
-                    print("Started")
-                    gesture_start = ticks_ms()
-                    gesture_initialized = 0
-                    gesture_name = "rz"
+                #if abs(rx) > 225:
+                #    start_pattern("rx")
+                #elif abs(ry) > 225:
+                #    start_pattern("ry")
+                #elif abs(rz) > 225:
+                #    start_pattern("rz")
+                if x > 1.2:
+                    start_pattern("x+")
+                elif x < -1.2:
+                    start_pattern("x-")
+                elif y > 1.2:
+                    start_pattern("y+")
+                elif y < -1.2:
+                    start_pattern("y-")
+                elif z > 1.8:
+                    start_pattern("z+")
+                elif z < 0:
+                    start_pattern("z-")
+                #elif abs(y) > 1:
+                #    start_pattern("y")
+                #elif abs(z) > 1:
+                #    start_pattern("z")
                 pixels.show()
                 if gesture_start:
                     if not wlan.isconnected():
@@ -127,8 +158,8 @@ def monitor_loop():
                             wlan = wifi_connection(config)                        
                     for client in mobile_clients:
                         print('send')
-                        client.send("/gesture", gesture_name)
-            print("X: {:6.2f}g, Y: {:6.2f}g, Z: {:6.2f}g RX: {:6.2f}, RY: {:6.2f}, RZ: {:6.2f}".format(x, y, z, rx, ry, rz))
+                        client.send("/gesture", ('b', patterns.pattern_dict[gesture_name]))
+            #print("X: {:6.2f}g, Y: {:6.2f}g, Z: {:6.2f}g RX: {:6.2f}, RY: {:6.2f}, RZ: {:6.2f}".format(x, y, z, rx, ry, rz))
             
             utime.sleep(0.05)
         except Exception as e:
@@ -141,7 +172,7 @@ if __name__ == "__main__":
     
     rhb_pico_utils.led = Pin("LED", Pin.OUT)
     rhb_pico_utils.led.on()
-    pixels.fill(BLUE)
+    pixels.fill(ORANGE)
     pixels.show()
 
     mobile_clients = list(map(lambda x: Client(x, 8888), config["MOBILE_CLIENTS"].split(",")))
